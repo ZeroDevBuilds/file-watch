@@ -1,11 +1,52 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs-extra');
 const FileManager = require('./fileManager');
 const FolderWatcher = require('./folderWatcher');
+
+// Disable GPU acceleration for WSL compatibility
+app.disableHardwareAcceleration();
 
 let mainWindow;
 let fileManager;
 let folderWatcher;
+let configPath;
+
+function getConfigPath() {
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'config.json');
+}
+
+async function loadConfig() {
+  try {
+    configPath = getConfigPath();
+    if (await fs.pathExists(configPath)) {
+      const config = await fs.readJson(configPath);
+      return config;
+    }
+  } catch (error) {
+    console.error('Error loading config:', error);
+  }
+  
+  // Return default config
+  return {
+    watchedFolders: [],
+    autoOrganize: false,
+    checkIntervalMinutes: 60,
+    ageThresholdYears: 3
+  };
+}
+
+async function saveConfig(config) {
+  try {
+    configPath = getConfigPath();
+    await fs.writeJson(configPath, config, { spaces: 2 });
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving config:', error);
+    return { success: false, error: error.message };
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -17,6 +58,8 @@ function createWindow() {
       nodeIntegration: false
     }
   });
+
+  mainWindow.webContents.openDevTools();
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   
@@ -42,6 +85,14 @@ app.on('window-all-closed', () => {
 });
 
 // IPC Handlers
+ipcMain.handle('load-config', async () => {
+  return await loadConfig();
+});
+
+ipcMain.handle('save-config', async (event, config) => {
+  return await saveConfig(config);
+});
+
 ipcMain.handle('select-folders', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory', 'multiSelections']

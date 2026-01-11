@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  loadConfig: () => ipcRenderer.invoke('load-config'),
+  saveConfig: (config) => ipcRenderer.invoke('save-config', config),
   selectFolders: () => ipcRenderer.invoke('select-folders'),
   organizeFiles: (folderPath) => ipcRenderer.invoke('organize-files', folderPath),
   scanOldFiles: (folderPath, yearsOld) => ipcRenderer.invoke('scan-old-files', folderPath, yearsOld),

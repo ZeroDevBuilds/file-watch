@@ -4,21 +4,35 @@ const { subYears } = require('date-fns');
 
 class FileManager {
   async organizeByExtension(folderPath) {
-    const files = await this.getAllFiles(folderPath);
+    // Only get files at the root level, not in subdirectories
+    const items = await fs.readdir(folderPath);
     const organized = {};
 
-    for (const file of files) {
-      const ext = path.extname(file).toLowerCase() || 'no-extension';
-      const extFolder = path.join(folderPath, ext.replace('.', ''));
+    for (const item of items) {
+      const itemPath = path.join(folderPath, item);
+      const stat = await fs.stat(itemPath);
+
+      // Skip directories - only process files
+      if (stat.isDirectory()) {
+        continue;
+      }
+
+      const ext = path.extname(item).toLowerCase() || 'no-extension';
+      const extFolderName = ext.replace('.', '') || 'no-extension';
+      const extFolder = path.join(folderPath, extFolderName);
       
       await fs.ensureDir(extFolder);
-      const fileName = path.basename(file);
+      const fileName = path.basename(itemPath);
       const newPath = path.join(extFolder, fileName);
       
-      await fs.move(file, newPath, { overwrite: false });
-      
-      if (!organized[ext]) organized[ext] = 0;
-      organized[ext]++;
+      try {
+        await fs.move(itemPath, newPath, { overwrite: false });
+        
+        if (!organized[ext]) organized[ext] = 0;
+        organized[ext]++;
+      } catch (error) {
+        console.log(`Skipped ${fileName}: ${error.message}`);
+      }
     }
 
     return organized;

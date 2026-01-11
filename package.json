@@ -1,5 +1,5 @@
 {
-  "name": "file-watch-app",
+  "name": "file-watcher-app",
   "version": "1.0.0",
   "description": "Cross-platform file organization tool",
   "main": "src/main/main.js",
@@ -21,28 +21,41 @@
   "dependencies": {
     "chokidar": "^3.6.0",
     "date-fns": "^3.0.0",
-    "fs-extra": "^11.2.0",
-    "gitignore": "^0.7.0"
+    "fs-extra": "^11.2.0"
   },
   "build": {
-    "appId": "com.zerodevbuilds.filewatch",
-    "productName": "File Manager",
+    "appId": "com.zerodevbuilds.filewatcher",
+    "productName": "FileWatcher",
     "directories": {
       "output": "dist"
     },
     "files": [
-      "src/**/*"
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
     ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        "dmg"
-      ]
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "build/icon.icns"
     },
     "win": {
       "target": [
-        "nsis"
-      ]
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Utility"
     }
   }
 }
