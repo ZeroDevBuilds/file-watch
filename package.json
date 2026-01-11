@@ -1,0 +1,48 @@
+{
+  "name": "file-watch-app",
+  "version": "1.0.0",
+  "description": "Cross-platform file organization tool",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron . --disable-gpu --no-sandbox",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win"
+  },
+  "keywords": [
+    "electron",
+    "file-manager"
+  ],
+  "author": "zerodevbuilds",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "date-fns": "^3.0.0",
+    "fs-extra": "^11.2.0",
+    "gitignore": "^0.7.0"
+  },
+  "build": {
+    "appId": "com.zerodevbuilds.filewatch",
+    "productName": "File Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}
