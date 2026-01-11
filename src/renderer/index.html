@@ -265,7 +265,15 @@
       <!-- Old Files Screen -->
       <div class="screen" id="old-files">
         <h1>Find Old Files</h1>
-        
+
+        <div class="settings-group" style="margin-bottom: 20px;">
+          <label for="fileTypesInput" style="display: block; margin-bottom: 8px; font-weight: 500;">
+            File types to scan (leave empty for defaults):
+          </label>
+          <input type="text" id="fileTypesInput" placeholder="Default: .pdf, .doc, .docx, .xls, .jpg, .png, .mp3, .mp4, .zip..."
+            style="width: 100%; max-width: 500px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+        </div>
+
         <button class="btn btn-primary" id="scanOldFilesBtn">Scan for Old Files</button>
         <button class="btn btn-danger" id="deleteSelectedBtn" style="display:none;">Delete Selected</button>
 
@@ -317,6 +325,46 @@
     let autoOrganizeEnabled = false;
     let checkIntervalMinutes = 60;
 
+    // Load config on startup
+    async function loadConfig() {
+      const config = await window.electronAPI.loadConfig();
+      watchedFolders = config.watchedFolders || [];
+      ageThresholdYears = config.ageThresholdYears || 3;
+      autoOrganizeEnabled = config.autoOrganize || false;
+      checkIntervalMinutes = config.checkIntervalMinutes || 60;
+
+      // Update UI
+      document.getElementById('ageThreshold').value = ageThresholdYears;
+      document.getElementById('ageValue').textContent = `${ageThresholdYears} years`;
+      document.getElementById('autoOrganize').checked = autoOrganizeEnabled;
+      document.getElementById('intervalSetting').style.display = autoOrganizeEnabled ? 'block' : 'none';
+      document.getElementById('checkInterval').value = checkIntervalMinutes;
+      document.getElementById('intervalValue').textContent = formatInterval(checkIntervalMinutes);
+
+      renderFolderList();
+    }
+
+    async function saveConfig() {
+      await window.electronAPI.saveConfig({
+        watchedFolders,
+        ageThresholdYears,
+        autoOrganize: autoOrganizeEnabled,
+        checkIntervalMinutes
+      });
+    }
+
+    function formatInterval(minutes) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      if (hours > 0 && mins > 0) {
+        return `${hours} hr ${mins} min`;
+      } else if (hours > 0) {
+        return `${hours} hr`;
+      } else {
+        return `${mins} min`;
+      }
+    }
+
     // Navigation
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -335,6 +383,7 @@
       if (folders && folders.length > 0) {
         watchedFolders = [...new Set([...watchedFolders, ...folders])];
         renderFolderList();
+        await saveConfig();
       }
     });
 
@@ -361,6 +410,9 @@
       updateWatchStatus(false);
     });
 
+    // Default file types to scan
+    const defaultFileTypes = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.gif', '.mp3', '.mp4', '.mov', '.zip', '.rar'];
+
     // Scan Old Files
     document.getElementById('scanOldFilesBtn').addEventListener('click', async () => {
       if (watchedFolders.length === 0) {
@@ -368,11 +420,30 @@
         return;
       }
 
+      const fileTypesInput = document.getElementById('fileTypesInput').value.trim();
+
+      // Use input if provided, otherwise use defaults
+      let fileTypes;
+      if (fileTypesInput) {
+        fileTypes = fileTypesInput
+          .split(',')
+          .map(t => t.trim().toLowerCase())
+          .filter(t => t.length > 0)
+          .map(t => t.startsWith('.') ? t : '.' + t);
+      } else {
+        fileTypes = defaultFileTypes;
+      }
+
       oldFilesData = [];
       for (const folder of watchedFolders) {
         const result = await window.electronAPI.scanOldFiles(folder, ageThresholdYears);
         if (result.success) {
-          oldFilesData = [...oldFilesData, ...result.data];
+          // Filter by file types
+          const filtered = result.data.filter(file => {
+            const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+            return fileTypes.includes(ext);
+          });
+          oldFilesData = [...oldFilesData, ...filtered];
         }
       }
       renderOldFilesTable();
@@ -398,18 +469,20 @@
     });
 
     // Age Threshold Slider
-    document.getElementById('ageThreshold').addEventListener('input', (e) => {
+    document.getElementById('ageThreshold').addEventListener('input', async (e) => {
       ageThresholdYears = parseInt(e.target.value);
       document.getElementById('ageValue').textContent = `${ageThresholdYears} years`;
+      await saveConfig();
     });
 
     // Auto-Organize Checkbox
     document.getElementById('autoOrganize').addEventListener('change', async (e) => {
       autoOrganizeEnabled = e.target.checked;
       document.getElementById('intervalSetting').style.display = autoOrganizeEnabled ? 'block' : 'none';
-      
+
       await window.electronAPI.updateAutoOrganize(autoOrganizeEnabled, checkIntervalMinutes);
-      
+      await saveConfig();
+
       // If we have folders and auto-organize is enabled, restart watching with new settings
       if (watchedFolders.length > 0) {
         await window.electronAPI.startWatching(watchedFolders, autoOrganizeEnabled, checkIntervalMinutes);
@@ -420,22 +493,11 @@
     // Check Interval Slider
     document.getElementById('checkInterval').addEventListener('input', async (e) => {
       checkIntervalMinutes = parseInt(e.target.value);
-      const hours = Math.floor(checkIntervalMinutes / 60);
-      const mins = checkIntervalMinutes % 60;
-      
-      let displayText = '';
-      if (hours > 0 && mins > 0) {
-        displayText = `${hours} hr ${mins} min`;
-      } else if (hours > 0) {
-        displayText = `${hours} hr`;
-      } else {
-        displayText = `${mins} min`;
-      }
-      
-      document.getElementById('intervalValue').textContent = displayText;
-      
+      document.getElementById('intervalValue').textContent = formatInterval(checkIntervalMinutes);
+
       await window.electronAPI.updateAutoOrganize(autoOrganizeEnabled, checkIntervalMinutes);
-      
+      await saveConfig();
+
       // Restart watching if already active
       if (watchedFolders.length > 0 && autoOrganizeEnabled) {
         await window.electronAPI.startWatching(watchedFolders, autoOrganizeEnabled, checkIntervalMinutes);
@@ -447,6 +509,7 @@
       const list = document.getElementById('folderList');
       if (watchedFolders.length === 0) {
         list.innerHTML = '<div class="empty-state"><p>No folders selected</p></div>';
+        updateWatchStatus(false);
         return;
       }
 
@@ -461,9 +524,10 @@
       updateWatchStatus(true, autoOrganizeEnabled);
     }
 
-    function removeFolder(folder) {
+    async function removeFolder(folder) {
       watchedFolders = watchedFolders.filter(f => f !== folder);
       renderFolderList();
+      await saveConfig();
     }
 
     function updateWatchStatus(watching, autoOrg = false) {
@@ -515,7 +579,7 @@
           <thead>
             <tr>
               <th><input type="checkbox" id="selectAll"></th>
-              <th>File Name</th>
+              <th>File Path</th>
               <th>Size</th>
               <th>Modified</th>
             </tr>
@@ -524,7 +588,7 @@
             ${oldFilesData.map((file, i) => `
               <tr>
                 <td><input type="checkbox" id="check-${i}"></td>
-                <td>${file.name}</td>
+                <td style="word-break: break-all; font-family: monospace; font-size: 12px;">${file.path}</td>
                 <td>${formatSize(file.size)}</td>
                 <td>${new Date(file.modified).toLocaleDateString()}</td>
               </tr>
@@ -539,6 +603,9 @@
         });
       });
     }
+
+    // Initialize on load
+    loadConfig();
   </script>
 </body>
 </html>
